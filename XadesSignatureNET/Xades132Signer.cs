@@ -15,6 +15,26 @@ namespace XadesSignatureNET
     public class Xades132Signer
     {
 
+        public string SignDocument(string xmlString, X509Certificate2 certificate, string certificatePassword)
+        {
+
+            var signature = new CustomXadesSigner();
+
+            var dataToSign = createDataToSign(xmlString);
+
+            try
+            {
+                var signedXml = signature.Sign(dataToSign, certificate, certificatePassword);
+                return signedXml;
+            }
+            catch (Exception ex)
+            {
+                return null;
+            }
+
+
+        }
+        /*
         public string SignDocument(string xmlString, string certificatePath, string certificatePassword)
         {
 
@@ -34,7 +54,7 @@ namespace XadesSignatureNET
 
 
         }
-
+        */
         public string SignDocument(XmlDocument document, string certificatePath, string certificatePassword)
         {
 

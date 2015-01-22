@@ -1,5 +1,6 @@
 ﻿using System.Diagnostics;
 using System.IO;
+using System.Security.Cryptography.X509Certificates;
 using System.Security.Cryptography.Xml;
 using System.Xml;
 using System.Xml.Linq;
@@ -24,6 +25,7 @@ using Object = System.Object;
 using String = System.String;
 using StringReader = java.io.StringReader;
 using StringWriter = java.io.StringWriter;
+using X509Certificate = java.security.cert.X509Certificate;
 
 namespace XadesSignatureNET
 {
@@ -32,10 +34,100 @@ namespace XadesSignatureNET
 
 
 
+        public string Sign(DataToSign dataToSign, X509Certificate2 certificate, string certificatePass)
+        {
 
+            
+
+
+
+            KeyStore keyStore = getKeyStore(certificate, certificatePass);
+
+            if (keyStore == null)
+            {
+                throw new Exception("No se pudo obtener almacen de firma.");
+            }
+
+            String alias = getAlias(keyStore);
+
+            X509Certificate javaCertificate = null;
+
+            try
+            {
+                javaCertificate = (X509Certificate)keyStore.getCertificate(alias);
+                if (certificate == null)
+                {
+                    throw new Exception("No existe ningún certificado para firmar.");
+                }
+            }
+            catch (KeyStoreException ex)
+            {
+                throw new Exception(ex.Message);
+            }
+
+
+            PrivateKey privateKey = null;
+            KeyStore tmpKs = keyStore;
+            try
+            {
+                privateKey = (PrivateKey)tmpKs.getKey(alias, certificatePass.ToCharArray());
+            }
+            catch (UnrecoverableKeyException e)
+            {
+                throw new Exception("No existe clave privada para firmar.");
+            }
+            catch (KeyStoreException e)
+            {
+                throw new Exception("No existe clave privada para firmar.");
+            }
+            catch (NoSuchAlgorithmException e)
+            {
+                throw new Exception("No existe clave privada para firmar.");
+            }
+            catch (Exception ex)
+            {
+                throw ex;
+            }
+
+            Provider provider = keyStore.getProvider();
+
+            FirmaXML firma = new FirmaXML();
+
+            Document docSigned = null;
+            try
+            {
+                Object[] res = firma.signFile(javaCertificate, dataToSign, privateKey, provider);
+                docSigned = (Document)res[0];
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Error realizando la firma");
+            }
+
+
+            if (Validar(docSigned))
+            {
+
+                //SaveDocumenteDisk(docSigned, "C:\\Temp\\output.xml");
+
+                var stringXml = GetStringFromDoc(docSigned);
+
+                return stringXml;
+
+            }
+            else
+            {
+                throw new Exception("Error el archivo no paso la prueba de verificacion");
+            }
+
+            return null;
+        }
 
         public string Sign(DataToSign dataToSign, string certificatePath, string certificatePass)
         {
+
+
+
             KeyStore keyStore = getKeyStore(certificatePath, certificatePass);
 
             if (keyStore == null)
@@ -65,7 +157,7 @@ namespace XadesSignatureNET
             KeyStore tmpKs = keyStore;
             try
             {
-                privateKey = (PrivateKey) tmpKs.getKey(alias, certificatePass.ToCharArray());
+                privateKey = (PrivateKey)tmpKs.getKey(alias, certificatePass.ToCharArray());
             }
             catch (UnrecoverableKeyException e)
             {
@@ -109,33 +201,6 @@ namespace XadesSignatureNET
 
                 return stringXml;
 
-                /*
-
-                var result = new XmlDocument();
-                result.PreserveWhitespace = true;
-
-                var sr = new System.IO.StringReader(stringXml);
-
-
-                XDocument xDocument = XDocument.Load(sr, LoadOptions.PreserveWhitespace);
-
-                var temp = xDocument.ToString(SaveOptions.DisableFormatting);
-                */
-                /*
-                var sr = new System.IO.StringReader(stringXml);
-
-                var signedXml = new SignedXml();
-                signedXml.LoadXml();
-
-                var result = new XmlDocument();
-                    result.PreserveWhitespace = true;
-                    result.Load(sr);
-                
-                sr.Dispose();
-                */
-
-                //result.LoadXml(stringXml);
-                //return result;
             }
             else
             {
@@ -184,20 +249,29 @@ namespace XadesSignatureNET
             return doc;
         }
 
-        private KeyStore getKeyStore(byte[] certificateBytes, string password)
+
+
+        private KeyStore getKeyStore(X509Certificate2 certificate, string password)
         {
+
+            
+
             KeyStore ks = null;
             try
             {
 
-                ks = KeyStore.getInstance("PKCS12");
-                var inputStream = new ByteArrayInputStream(certificateBytes);
-                ks.load(inputStream, password.ToCharArray());
-
+                // Export the certificate including the private key.
+                byte[] certBytes = certificate.Export(X509ContentType.Pkcs12,password);
                 /*
-                ks = KeyStore.getInstance("PKCS12");
-                ks.load(new FileInputStream(certificatePath), certificatePass.ToCharArray());
+                CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
+                InputStream inStream = new ByteArrayInputStream(certBytes);
+                X509Certificate cert = (X509Certificate)certFactory.generateCertificate(inStream);
                 */
+                //byte[] certData = certificate.Export(X509ContentType.Cert);
+
+                ks = KeyStore.getInstance("PKCS12");
+                var inputStream = new ByteArrayInputStream(certBytes);
+                ks.load(inputStream, password.ToCharArray());
             }
             catch (KeyStoreException e)
             {
